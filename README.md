@@ -2,6 +2,8 @@
 
 This is `StrongParameters` from Ruby on Rails, just... without ActionController. It was literally copied from [the source](https://github.com/rails/rails/blob/master/actionpack/lib/action_controller/metal/strong_parameters.rb) and reorganized so it can be used as module.
 
+Error classes are now namespaced with `StrongParameters::Error`. Other explicit references to ActionController have been removed. Please get in touch if anything lingers.
+
 ## Installation
 
 In your gemfile:
