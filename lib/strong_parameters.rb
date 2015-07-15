@@ -193,7 +193,7 @@ module StrongParameters
     #   params.permitted?  # => true
     #   Person.new(params) # => #<Person id: nil, name: "Francesco">
     def permit!
-      each_pair do |key, value|
+      each_pair do |_key, value|
         Array.wrap(value).each do |v|
           v.permit! if v.respond_to? :permit!
         end
@@ -220,12 +220,12 @@ module StrongParameters
       if value.present? || value == false
         value
       else
-        raise ParameterMissing.new(key)
+        fail ParameterMissing.new(key)
       end
     end
 
     # Alias of #require.
-    alias :required :require
+    alias_method :required, :require
 
     # Returns a new <tt>ActionController::Parameters</tt> instance that
     # includes only the given +filters+ and sets the +permitted+ attribute
@@ -413,18 +413,18 @@ module StrongParameters
     end
 
     protected
-    def permitted=(new_permitted)
-      @permitted = new_permitted
-    end
+
+    attr_writer :permitted
 
     private
+
     def new_instance_with_inherited_permitted_status(hash)
       self.class.new(hash).tap do |new_instance|
         new_instance.permitted = @permitted
       end
     end
 
-    def convert_hashes_to_parameters(key, value, assign_if_converted=true)
+    def convert_hashes_to_parameters(key, value, assign_if_converted = true)
       converted = convert_value_to_parameters(value)
       self[key] = converted if assign_if_converted && !converted.equal?(value)
       converted
@@ -447,7 +447,7 @@ module StrongParameters
         object.map { |el| yield el }.compact
       elsif fields_for_style?(object)
         hash = object.class.new
-        object.each { |k,v| hash[k] = yield v }
+        object.each { |k, v| hash[k] = yield v }
         hash
       else
         yield object
@@ -463,10 +463,10 @@ module StrongParameters
       if unpermitted_keys.any?
         case self.class.action_on_unpermitted_parameters
           when :log
-            name = "unpermitted_parameters.action_controller"
+            name = 'unpermitted_parameters.action_controller'
             ActiveSupport::Notifications.instrument(name, keys: unpermitted_keys)
           when :raise
-            raise StrongParameters::Error::UnpermittedParameters.new(unpermitted_keys)
+            fail StrongParameters::Error::UnpermittedParameters.new(unpermitted_keys)
         end
       end
     end
@@ -487,27 +487,27 @@ module StrongParameters
     #
     # If you modify this collection please update the API of +permit+ above.
     PERMITTED_SCALAR_TYPES = [
-        String,
-        Symbol,
-        NilClass,
-        Numeric,
-        TrueClass,
-        FalseClass,
-        Date,
-        Time,
-        # DateTimes are Dates, we document the type but avoid the redundant check.
-        StringIO,
-        IO,
-        ActionDispatch::Http::UploadedFile,
-        ::Rack::Test::UploadedFile,
+      String,
+      Symbol,
+      NilClass,
+      Numeric,
+      TrueClass,
+      FalseClass,
+      Date,
+      Time,
+      # DateTimes are Dates, we document the type but avoid the redundant check.
+      StringIO,
+      IO,
+      ActionDispatch::Http::UploadedFile,
+      ::Rack::Test::UploadedFile
     ]
 
     def permitted_scalar?(value)
-      PERMITTED_SCALAR_TYPES.any? {|type| value.is_a?(type)}
+      PERMITTED_SCALAR_TYPES.any? { |type| value.is_a?(type) }
     end
 
     def permitted_scalar_filter(params, key)
-      if has_key?(key) && permitted_scalar?(self[key])
+      if key?(key) && permitted_scalar?(self[key])
         params[key] = self[key]
       end
 
@@ -520,12 +520,12 @@ module StrongParameters
 
     def array_of_permitted_scalars?(value)
       if value.is_a?(Array)
-        value.all? {|element| permitted_scalar?(element)}
+        value.all? { |element| permitted_scalar?(element) }
       end
     end
 
     def array_of_permitted_scalars_filter(params, key)
-      if has_key?(key) && array_of_permitted_scalars?(self[key])
+      if key?(key) && array_of_permitted_scalars?(self[key])
         params[key] = self[key]
       end
     end
