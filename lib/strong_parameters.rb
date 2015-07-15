@@ -10,6 +10,8 @@ require 'stringio'
 require 'set'
 
 module StrongParameters
+  include StrongParameters::Error
+
   # == Strong \Parameters
   #
   # It provides an interface for protecting attributes from end-user

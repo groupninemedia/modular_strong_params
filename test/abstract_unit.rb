@@ -31,5 +31,6 @@ def jruby_skip(message = '')
 end
 
 require 'minitest/mock'
+require 'strong_parameters'
 
 load 'lib/action_controller.rb'

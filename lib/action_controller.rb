@@ -1,7 +1,4 @@
-require 'strong_parameters'
-
 module ActionController
-  include StrongParameters::Error
   include StrongParameters
 
   module StrongParameters

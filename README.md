@@ -1,39 +1,54 @@
 # ModularStrongParams
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/modular_strong_params`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+This is `StrongParameters` from Ruby on Rails, just... without ActionController. It was literally copied from [the source](https://github.com/rails/rails/blob/master/actionpack/lib/action_controller/metal/strong_parameters.rb) and reorganized so it can be used as module.
 
 ## Installation
 
-Add this line to your application's Gemfile:
+In your gemfile:
 
-```ruby
-gem 'modular_strong_params'
 ```
-
-And then execute:
-
-    $ bundle
-
-Or install it yourself as:
-
-    $ gem install modular_strong_params
+gem 'modular_strong_params', '~> 1.0.0'
+```
 
 ## Usage
 
-TODO: Write usage instructions here
+`lib/action_controller.rb` more or less demonstrates its use.
 
-## Development
+```ruby
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `bin/console` for an interactive prompt that will allow you to experiment.
+require 'strong_parameters'
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release` to create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+class MyAppClass
+  include StrongParameters
 
-## Contributing
+  def params
+    @_params ||= Parameters.new(method_that_returns_base_params_hash)
+  end
 
-1. Fork it ( https://github.com/[my-github-username]/modular_strong_params/fork )
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create a new Pull Request
+  def params=(value)
+    @_params = value.is_a?(Hash) ? Parameters.new(value) : value
+  end
+end
+```
+
+Those methods and the `method_that_returns_base_params_hash` will need to be adapted to your environment. For instance, with a Sinatra app at work, we do this:
+
+```
+  def params
+    @params ||= StrongParameters::Parameters.new(super)
+  end
+```
+
+This gets Sinatra's magical params first, then turns them into a StrongParams. Though you take a bit of a performance hit here, we think that the rewards outweigh the costs. 
+
+## Credit Where Credit's Due
+
+Full credit for this code goes to those who contributed to this code in Rails.
+
+### Maintenance
+
+Since this code has been copied from Rails, it will need to be maintained separately. We cannot claim to keep up on that constantly. If you come across changes to the source that are not reflected here, please submit a PR with passing tests.
+
+## License
+
+Released under the [MIT License](http://www.opensource.org/licenses/MIT).
