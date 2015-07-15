@@ -10,8 +10,8 @@ ORIG_ARGV = ARGV.dup
 require 'active_support/core_ext/kernel/reporting'
 
 silence_warnings do
-  Encoding.default_internal = "UTF-8"
-  Encoding.default_external = "UTF-8"
+  Encoding.default_internal = 'UTF-8'
+  Encoding.default_external = 'UTF-8'
 end
 
 require 'active_support/testing/autorun'
@@ -44,3 +44,5 @@ require 'minitest/mock'
 # class ActiveSupport::TestCase
 #   include ActiveSupport::Testing::MethodCallAssertions
 # end
+
+load 'lib/action_controller.rb'

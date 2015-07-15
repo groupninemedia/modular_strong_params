@@ -1,110 +1,82 @@
-require 'active_support/core_ext/hash/indifferent_access'
+require 'modular_strong_params/version'
+require 'strong_parameters/error'
 require 'active_support/core_ext/array/wrap'
 require 'active_support/core_ext/string/filters'
 require 'active_support/rescuable'
+require 'active_support/core_ext/hash/indifferent_access'
 require 'action_dispatch/http/upload'
+require 'rack/test'
 require 'stringio'
 require 'set'
-require 'rack/test'
 
-module ActionController
-  # Raised when a required parameter is missing.
+module StrongParameters
+  # == Strong \Parameters
   #
-  #   params = ActionController::Parameters.new(a: {})
-  #   params.fetch(:b)
-  #   # => ActionController::ParameterMissing: param is missing or the value is empty: b
-  #   params.require(:a)
-  #   # => ActionController::ParameterMissing: param is missing or the value is empty: a
-  class ParameterMissing < KeyError
-    attr_reader :param # :nodoc:
-
-    def initialize(param) # :nodoc:
-      @param = param
-      super("param is missing or the value is empty: #{param}")
-    end
-  end
-
-  # Raised when a supplied parameter is not expected and
-  # ActionController::Parameters.action_on_unpermitted_parameters
-  # is set to <tt>:raise</tt>.
+  # It provides an interface for protecting attributes from end-user
+  # assignment. This makes Action Controller parameters forbidden
+  # to be used in Active Model mass assignment until they have been
+  # whitelisted.
   #
-  #   params = ActionController::Parameters.new(a: "123", b: "456")
-  #   params.permit(:c)
-  #   # => ActionController::UnpermittedParameters: found unpermitted parameters: a, b
-  class UnpermittedParameters < IndexError
-    attr_reader :params # :nodoc:
-
-    def initialize(params) # :nodoc:
-      @params = params
-      super("found unpermitted parameter#{'s' if params.size > 1 }: #{params.join(", ")}")
-    end
-  end
-
-  # == Action Controller \Parameters
+  # In addition, parameters can be marked as required and flow through a
+  # predefined raise/rescue flow to end up as a 400 Bad Request with no
+  # effort.
   #
-  # Allows to choose which attributes should be whitelisted for mass updating
-  # and thus prevent accidentally exposing that which shouldn't be exposed.
-  # Provides two methods for this purpose: #require and #permit. The former is
-  # used to mark parameters as required. The latter is used to set the parameter
-  # as permitted and limit which attributes should be allowed for mass updating.
+  #   class PeopleController < ActionController::Base
+  #     # Using "Person.create(params[:person])" would raise an
+  #     # ActiveModel::ForbiddenAttributes exception because it'd
+  #     # be using mass assignment without an explicit permit step.
+  #     # This is the recommended form:
+  #     def create
+  #       Person.create(person_params)
+  #     end
   #
-  #   params = ActionController::Parameters.new({
-  #     person: {
-  #       name: 'Francesco',
-  #       age:  22,
-  #       role: 'admin'
-  #     }
-  #   })
+  #     # This will pass with flying colors as long as there's a person key in the
+  #     # parameters, otherwise it'll raise an ActionController::MissingParameter
+  #     # exception, which will get caught by ActionController::Base and turned
+  #     # into a 400 Bad Request reply.
+  #     def update
+  #       redirect_to current_account.people.find(params[:id]).tap { |person|
+  #         person.update!(person_params)
+  #       }
+  #     end
   #
-  #   permitted = params.require(:person).permit(:name, :age)
-  #   permitted            # => {"name"=>"Francesco", "age"=>22}
-  #   permitted.class      # => ActionController::Parameters
-  #   permitted.permitted? # => true
+  #     private
+  #       # Using a private method to encapsulate the permissible parameters is
+  #       # just a good pattern since you'll be able to reuse the same permit
+  #       # list between create and update. Also, you can specialize this method
+  #       # with per-user checking of permissible attributes.
+  #       def person_params
+  #         params.require(:person).permit(:name, :age)
+  #       end
+  #   end
   #
-  #   Person.first.update!(permitted)
-  #   # => #<Person id: 1, name: "Francesco", age: 22, role: "user">
+  # In order to use <tt>accepts_nested_attributes_for</tt> with Strong \Parameters, you
+  # will need to specify which nested attributes should be whitelisted.
   #
-  # It provides two options that controls the top-level behavior of new instances:
+  #   class Person
+  #     has_many :pets
+  #     accepts_nested_attributes_for :pets
+  #   end
   #
-  # * +permit_all_parameters+ - If it's +true+, all the parameters will be
-  #   permitted by default. The default is +false+.
-  # * +action_on_unpermitted_parameters+ - Allow to control the behavior when parameters
-  #   that are not explicitly permitted are found. The values can be <tt>:log</tt> to
-  #   write a message on the logger or <tt>:raise</tt> to raise
-  #   ActionController::UnpermittedParameters exception. The default value is <tt>:log</tt>
-  #   in test and development environments, +false+ otherwise.
+  #   class PeopleController < ActionController::Base
+  #     def create
+  #       Person.create(person_params)
+  #     end
   #
-  # Examples:
+  #     ...
   #
-  #   params = ActionController::Parameters.new
-  #   params.permitted? # => false
+  #     private
   #
-  #   ActionController::Parameters.permit_all_parameters = true
+  #       def person_params
+  #         # It's mandatory to specify the nested attributes that should be whitelisted.
+  #         # If you use `permit` with just the key that points to the nested attributes hash,
+  #         # it will return an empty hash.
+  #         params.require(:person).permit(:name, :age, pets_attributes: [ :name, :category ])
+  #       end
+  #   end
   #
-  #   params = ActionController::Parameters.new
-  #   params.permitted? # => true
-  #
-  #   params = ActionController::Parameters.new(a: "123", b: "456")
-  #   params.permit(:c)
-  #   # => {}
-  #
-  #   ActionController::Parameters.action_on_unpermitted_parameters = :raise
-  #
-  #   params = ActionController::Parameters.new(a: "123", b: "456")
-  #   params.permit(:c)
-  #   # => ActionController::UnpermittedParameters: found unpermitted keys: a, b
-  #
-  # Please note that these options *are not thread-safe*. In a multi-threaded
-  # environment they should only be set once at boot-time and never mutated at
-  # runtime.
-  #
-  # <tt>ActionController::Parameters</tt> inherits from
-  # <tt>ActiveSupport::HashWithIndifferentAccess</tt>, this means
-  # that you can fetch values using either <tt>:key</tt> or <tt>"key"</tt>.
-  #
-  #   params = ActionController::Parameters.new(key: 'value')
-  #   params[:key]  # => "value"
-  #   params["key"] # => "value"
+  # See ActionController::Parameters.require and ActionController::Parameters.permit
+  # for more information.V
   class Parameters < ActiveSupport::HashWithIndifferentAccess
     cattr_accessor :permit_all_parameters, instance_accessor: false
     cattr_accessor :action_on_unpermitted_parameters, instance_accessor: false
@@ -122,8 +94,8 @@ module ActionController
     def self.const_missing(const_name)
       return super unless const_name == :NEVER_UNPERMITTED_PARAMS
       ActiveSupport::Deprecation.warn(<<-MSG.squish)
-        `ActionController::Parameters::NEVER_UNPERMITTED_PARAMS` has been deprecated.
-        Use `ActionController::Parameters.always_permitted_parameters` instead.
+            `ActionController::Parameters::NEVER_UNPERMITTED_PARAMS` has been deprecated.
+            Use `ActionController::Parameters.always_permitted_parameters` instead.
       MSG
 
       always_permitted_parameters
@@ -365,7 +337,7 @@ module ActionController
     def fetch(key, *args)
       convert_hashes_to_parameters(key, super, false)
     rescue KeyError
-      raise ActionController::ParameterMissing.new(key)
+      raise StrongParameters::Error::ParameterMissing.new(key)
     end
 
     # Returns a new <tt>ActionController::Parameters</tt> instance that
@@ -494,7 +466,7 @@ module ActionController
             name = "unpermitted_parameters.action_controller"
             ActiveSupport::Notifications.instrument(name, keys: unpermitted_keys)
           when :raise
-            raise ActionController::UnpermittedParameters.new(unpermitted_keys)
+            raise StrongParameters::Error::UnpermittedParameters.new(unpermitted_keys)
         end
       end
     end
@@ -579,91 +551,6 @@ module ActionController
           end
         end
       end
-    end
-  end
-
-  # == Strong \Parameters
-  #
-  # It provides an interface for protecting attributes from end-user
-  # assignment. This makes Action Controller parameters forbidden
-  # to be used in Active Model mass assignment until they have been
-  # whitelisted.
-  #
-  # In addition, parameters can be marked as required and flow through a
-  # predefined raise/rescue flow to end up as a 400 Bad Request with no
-  # effort.
-  #
-  #   class PeopleController < ActionController::Base
-  #     # Using "Person.create(params[:person])" would raise an
-  #     # ActiveModel::ForbiddenAttributes exception because it'd
-  #     # be using mass assignment without an explicit permit step.
-  #     # This is the recommended form:
-  #     def create
-  #       Person.create(person_params)
-  #     end
-  #
-  #     # This will pass with flying colors as long as there's a person key in the
-  #     # parameters, otherwise it'll raise an ActionController::MissingParameter
-  #     # exception, which will get caught by ActionController::Base and turned
-  #     # into a 400 Bad Request reply.
-  #     def update
-  #       redirect_to current_account.people.find(params[:id]).tap { |person|
-  #         person.update!(person_params)
-  #       }
-  #     end
-  #
-  #     private
-  #       # Using a private method to encapsulate the permissible parameters is
-  #       # just a good pattern since you'll be able to reuse the same permit
-  #       # list between create and update. Also, you can specialize this method
-  #       # with per-user checking of permissible attributes.
-  #       def person_params
-  #         params.require(:person).permit(:name, :age)
-  #       end
-  #   end
-  #
-  # In order to use <tt>accepts_nested_attributes_for</tt> with Strong \Parameters, you
-  # will need to specify which nested attributes should be whitelisted.
-  #
-  #   class Person
-  #     has_many :pets
-  #     accepts_nested_attributes_for :pets
-  #   end
-  #
-  #   class PeopleController < ActionController::Base
-  #     def create
-  #       Person.create(person_params)
-  #     end
-  #
-  #     ...
-  #
-  #     private
-  #
-  #       def person_params
-  #         # It's mandatory to specify the nested attributes that should be whitelisted.
-  #         # If you use `permit` with just the key that points to the nested attributes hash,
-  #         # it will return an empty hash.
-  #         params.require(:person).permit(:name, :age, pets_attributes: [ :name, :category ])
-  #       end
-  #   end
-  #
-  # See ActionController::Parameters.require and ActionController::Parameters.permit
-  # for more information.
-  module StrongParameters
-    extend ActiveSupport::Concern
-    include ActiveSupport::Rescuable
-
-    # Returns a new ActionController::Parameters object that
-    # has been instantiated with the <tt>request.parameters</tt>.
-    def params
-      @_params ||= Parameters.new(request.parameters)
-    end
-
-    # Assigns the given +value+ to the +params+ hash. If +value+
-    # is a Hash, this will create an ActionController::Parameters
-    # object that has been instantiated with the given +value+ hash.
-    def params=(value)
-      @_params = value.is_a?(Hash) ? Parameters.new(value) : value
     end
   end
 end

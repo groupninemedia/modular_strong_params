@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-require "bundler/setup"
-require "modular_strong_params"
+require 'bundler/setup'
+require 'strong_parameters'
 
 # You can add fixtures and/or initialization code here to make experimenting
 # with your gem easier. You can also use a different console, if you like.
@@ -10,5 +10,5 @@ require "modular_strong_params"
 # require "pry"
 # Pry.start
 
-require "irb"
+require 'irb'
 IRB.start
