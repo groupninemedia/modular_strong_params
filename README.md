@@ -33,15 +33,11 @@ class MyAppClass
 end
 ```
 
-Those methods and the `method_that_returns_base_params_hash` will need to be adapted to your environment. For instance, with a Sinatra app at work, we do this:
+Those methods and the `method_that_returns_base_params_hash` will need to be adapted to your environment. Alternatively, you can turn any hash into a Parameters:
 
 ```
-  def params
-    @params ||= StrongParameters::Parameters.new(super)
-  end
+StrongParameters::Parameters.new(hash)
 ```
-
-This gets Sinatra's magical params first, then turns them into a StrongParams. Though you take a bit of a performance hit here, we think that the rewards outweigh the costs. 
 
 ## Credit Where Credit's Due
 
