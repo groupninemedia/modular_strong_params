@@ -222,7 +222,7 @@ module StrongParameters
       if value.present? || value == false
         value
       else
-        fail ParameterMissing.new(key)
+        fail StrongParameters::Error::ParameterMissing.new(key)
       end
     end
 
