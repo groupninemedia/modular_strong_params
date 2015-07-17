@@ -315,6 +315,15 @@ module StrongParameters
       params.permit!
     end
 
+    def warn(*filters)
+      self['data'].each do |data_hash|
+        rejectables = data_hash.symbolize_keys.keys & filters.flatten
+        raise StrongParameters::Error::UnpermittedParameters.new(rejectables) if rejectables.present?
+      end
+      self
+    end
+
+
     # Returns a parameter for the given +key+. If not found,
     # returns +nil+.
     #

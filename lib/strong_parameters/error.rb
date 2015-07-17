@@ -31,5 +31,15 @@ module StrongParameters
         super("found unpermitted parameter#{'s' if params.size > 1 }: #{params.join(', ')}")
       end
     end
+
+    class RejectedParameters < IndexError
+      attr_reader :params
+
+      def intitialize(params)
+        @params = params
+        super("Cannot accept parameter#{'s' if params.size > 1 }: #{params.join(', ')}")
+      end
+    end
+
   end
 end
