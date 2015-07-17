@@ -35,7 +35,7 @@ module StrongParameters
     class RejectedParameters < IndexError
       attr_reader :params
 
-      def intitialize(params)
+      def initialize(params)
         @params = params
         super("Cannot accept parameter#{'s' if params.size > 1 }: #{params.join(', ')}")
       end
