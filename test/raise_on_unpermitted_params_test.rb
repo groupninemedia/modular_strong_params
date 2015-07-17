@@ -27,3 +27,22 @@ class RaiseOnUnpermittedParamsTest < ActiveSupport::TestCase
     end
   end
 end
+
+
+
+class RaiseOnRejectedParamsTest < ActiveSupport::TestCase
+  test 'raises on rejected params' do
+    params = ActionController::Parameters.new(
+      data: [{
+        book: {pages: 65},
+        fishing: 'Turnips',
+        cooking: 'spaghetti'
+      }]
+    )
+
+    assert_raises(ActionController::RejectedParameters) do
+      params.warn(:cooking).permit(book: [:pages])
+    end
+  end
+
+end
